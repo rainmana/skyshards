@@ -1,19 +1,20 @@
 "use client";
 
-import { Aircraft } from "@/lib/supabaseClient";
+import { Aircraft, AircraftWithCollection } from "@/lib/supabase/types";
 import { Progress } from "@/components/ui/progress";
 
 interface DashboardStatsProps {
-  aircraft: Aircraft[];
+  aircraft: Aircraft[] | AircraftWithCollection[];
 }
 
 export function DashboardStats({ aircraft }: DashboardStatsProps) {
   const total = aircraft.length;
-  const caught = aircraft.filter((a) => a.caught).length;
+  // For now, default caught to false if not present (will be properly joined in next steps)
+  const caught = aircraft.filter((a) => 'caught' in a && a.caught).length;
   const completionPercentage = total > 0 ? (caught / total) * 100 : 0;
 
   // Find top rarity
-  const caughtAircraft = aircraft.filter((a) => a.caught);
+  const caughtAircraft = aircraft.filter((a) => 'caught' in a && a.caught);
   const rarities = caughtAircraft.map((a) => a.rarity);
   let topRarity = "None";
   if (rarities.includes("Legendary")) topRarity = "Legendary";

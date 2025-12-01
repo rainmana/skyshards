@@ -1,6 +1,6 @@
 "use client";
 
-import { Aircraft } from "@/lib/supabaseClient";
+import { AircraftWithCollection } from "@/lib/supabase/types";
 import {
   Dialog,
   DialogContent,
@@ -12,7 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { useMemo } from "react";
 
 interface AircraftDetailSheetProps {
-  aircraft: Aircraft;
+  aircraft: AircraftWithCollection;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }

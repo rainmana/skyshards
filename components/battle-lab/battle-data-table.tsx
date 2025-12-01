@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Aircraft } from "@/lib/supabaseClient";
+import { Aircraft } from "@/lib/supabase/types";
 import { Badge } from "@/components/ui/badge";
 
 interface AircraftWithWinRate extends Aircraft {

@@ -1,13 +1,14 @@
-import { createServerSupabaseClient } from "@/lib/supabaseClient";
+import { createClient } from "@/lib/supabase/server";
 import { DashboardStats } from "@/components/dashboard/dashboard-stats";
 import { RarityChart } from "@/components/dashboard/rarity-chart";
 import { CategoryChart } from "@/components/dashboard/category-chart";
+import { Aircraft } from "@/lib/supabase/types";
 
 export default async function DashboardPage() {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createClient();
   
   // Fetch all aircraft data
-  let aircraftData = [];
+  let aircraftData: Aircraft[] = [];
   
   try {
     const { data: aircraft, error } = await supabase

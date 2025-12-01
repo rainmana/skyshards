@@ -10,7 +10,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { Aircraft } from "@/lib/supabaseClient";
+import { Aircraft } from "@/lib/supabase/types";
 
 interface CategoryChartProps {
   aircraft: Aircraft[];

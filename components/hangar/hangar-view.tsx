@@ -1,20 +1,20 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Aircraft } from "@/lib/supabaseClient";
+import { Aircraft, AircraftWithCollection } from "@/lib/supabase/types";
 import { HangarFilters } from "./hangar-filters";
 import { AircraftGrid } from "./aircraft-grid";
 import { AircraftDetailSheet } from "./aircraft-detail-sheet";
 
 interface HangarViewProps {
-  initialAircraft: Aircraft[];
+  initialAircraft: Aircraft[] | AircraftWithCollection[];
 }
 
 export function HangarView({ initialAircraft }: HangarViewProps) {
   const [search, setSearch] = useState("");
   const [selectedRarities, setSelectedRarities] = useState<string[]>([]);
   const [showOnlyMissing, setShowOnlyMissing] = useState(false);
-  const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(
+  const [selectedAircraft, setSelectedAircraft] = useState<AircraftWithCollection | null>(
     null
   );
 
@@ -40,7 +40,7 @@ export function HangarView({ initialAircraft }: HangarViewProps) {
         selectedRarities.includes(aircraft.rarity);
 
       // Missing filter
-      const matchesMissing = !showOnlyMissing || !aircraft.caught;
+      const matchesMissing = !showOnlyMissing || !('caught' in aircraft && aircraft.caught);
 
       return matchesSearch && matchesRarity && matchesMissing;
     });
@@ -64,7 +64,7 @@ export function HangarView({ initialAircraft }: HangarViewProps) {
         onAircraftClick={setSelectedAircraft}
       />
 
-      {selectedAircraft && (
+      {selectedAircraft && 'caught' in selectedAircraft && (
         <AircraftDetailSheet
           aircraft={selectedAircraft}
           open={!!selectedAircraft}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Aircraft } from "@/lib/supabaseClient";
+import { Aircraft } from "@/lib/supabase/types";
 import { BattleScatterPlot } from "./battle-scatter-plot";
 import { BattleDataTable } from "./battle-data-table";
 

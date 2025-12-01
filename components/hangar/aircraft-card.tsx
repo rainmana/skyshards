@@ -1,12 +1,12 @@
 "use client";
 
-import { Aircraft } from "@/lib/supabaseClient";
+import { Aircraft, AircraftWithCollection } from "@/lib/supabase/types";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Plane } from "lucide-react";
 
 interface AircraftCardProps {
-  aircraft: Aircraft;
+  aircraft: Aircraft | AircraftWithCollection;
   onClick: () => void;
 }
 
@@ -28,7 +28,7 @@ export function AircraftCard({ aircraft, onClick }: AircraftCardProps) {
       onClick={onClick}
       className={cn(
         "glass rounded-xl shadow-sm border overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-md hover:-translate-y-1",
-        aircraft.caught
+        'caught' in aircraft && aircraft.caught
           ? "border-emerald-200 dark:border-emerald-800"
           : "border-slate-200 dark:border-slate-800 opacity-75",
         rarityColor
@@ -36,7 +36,7 @@ export function AircraftCard({ aircraft, onClick }: AircraftCardProps) {
     >
       <div className="h-32 bg-slate-100 dark:bg-slate-800 relative flex items-center justify-center">
         <Plane className="h-12 w-12 text-slate-400 dark:text-slate-600 opacity-25" />
-        {aircraft.caught && (
+        {'caught' in aircraft && aircraft.caught && (
           <span className="absolute top-2 right-2 bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded-full">
             CAUGHT
           </span>

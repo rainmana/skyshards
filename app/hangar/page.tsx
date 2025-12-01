@@ -1,11 +1,12 @@
-import { createServerSupabaseClient } from "@/lib/supabaseClient";
+import { createClient } from "@/lib/supabase/server";
 import { HangarView } from "@/components/hangar/hangar-view";
+import { Aircraft } from "@/lib/supabase/types";
 
 export default async function HangarPage() {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createClient();
   
   // Fetch all aircraft data
-  let aircraftData = [];
+  let aircraftData: Aircraft[] = [];
   
   try {
     const { data: aircraft, error } = await supabase

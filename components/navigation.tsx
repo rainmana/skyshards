@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Plane, BarChart3, Sword, Settings } from "lucide-react";
+import { Plane, BarChart3, Sword } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
+import { UserMenu } from "./auth/user-menu";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -47,7 +48,10 @@ export function Navigation() {
               })}
             </div>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <UserMenu />
+            <ThemeToggle />
+          </div>
         </div>
       </div>
       {/* Mobile Navigation */}

@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Aircraft } from "@/lib/supabaseClient";
+import { Aircraft, AircraftWithCollection } from "@/lib/supabase/types";
 import { AircraftCard } from "./aircraft-card";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface AircraftGridProps {
-  aircraft: Aircraft[];
-  onAircraftClick: (aircraft: Aircraft) => void;
+  aircraft: (Aircraft | AircraftWithCollection)[];
+  onAircraftClick: (aircraft: AircraftWithCollection) => void;
 }
 
 const ITEMS_PER_PAGE = 24;
@@ -39,13 +39,23 @@ export function AircraftGrid({ aircraft, onAircraftClick }: AircraftGridProps) {
   return (
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {paginatedAircraft.map((aircraft) => (
-          <AircraftCard
-            key={aircraft.icao}
-            aircraft={aircraft}
-            onClick={() => onAircraftClick(aircraft)}
-          />
-        ))}
+            {paginatedAircraft.map((aircraft) => {
+              // Ensure we have caught property for the click handler
+              const aircraftWithCollection: AircraftWithCollection = {
+                ...aircraft,
+                caught: 'caught' in aircraft ? aircraft.caught : false,
+              };
+              
+              return (
+                <AircraftCard
+                  key={aircraft.id}
+                  aircraft={aircraftWithCollection}
+                  onClick={() => {
+                    onAircraftClick(aircraftWithCollection);
+                  }}
+                />
+              );
+            })}
       </div>
 
       {totalPages > 1 && (

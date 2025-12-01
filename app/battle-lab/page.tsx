@@ -1,11 +1,12 @@
-import { createServerSupabaseClient } from "@/lib/supabaseClient";
+import { createClient } from "@/lib/supabase/server";
 import { BattleLabView } from "@/components/battle-lab/battle-lab-view";
+import { Aircraft } from "@/lib/supabase/types";
 
 export default async function BattleLabPage() {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createClient();
   
   // Fetch all aircraft data
-  let aircraftData = [];
+  let aircraftData: Aircraft[] = [];
   
   try {
     const { data: aircraft, error } = await supabase

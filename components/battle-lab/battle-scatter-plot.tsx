@@ -10,7 +10,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
-import { Aircraft } from "@/lib/supabaseClient";
+import { Aircraft } from "@/lib/supabase/types";
 
 interface AircraftWithWinRate extends Aircraft {
   win_rate: number;

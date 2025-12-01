@@ -1,7 +1,7 @@
 "use client";
 
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
-import { Aircraft } from "@/lib/supabaseClient";
+import { Aircraft } from "@/lib/supabase/types";
 
 interface RarityChartProps {
   aircraft: Aircraft[];
