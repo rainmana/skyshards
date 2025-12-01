@@ -18,10 +18,12 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
+  // Initialize Supabase client - handle errors gracefully
   const supabase = createClient();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     setLoading(true);
     setError(null);
     setMessage(null);

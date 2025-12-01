@@ -5,15 +5,14 @@ export function createClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+  // Always provide a client, even if env vars are missing
+  // This prevents crashes and allows graceful error handling
   if (!supabaseUrl || !supabaseAnonKey) {
-    // Client-side: only throw if we're actually in the browser
-    if (typeof window !== 'undefined') {
-      throw new Error('Missing Supabase environment variables');
-    }
-    // During SSR/build, return a placeholder client
+    console.error('Missing Supabase environment variables. Please check your configuration.');
+    // Return a client with placeholder values - API calls will fail gracefully
     return createBrowserClient<Database>(
-      'https://placeholder.supabase.co',
-      'placeholder-key'
+      supabaseUrl || 'https://placeholder.supabase.co',
+      supabaseAnonKey || 'placeholder-key'
     );
   }
 
