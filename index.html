@@ -12,6 +12,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Papaparse for robust CSV Processing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- SQL.js for generating binary SQLite files client-side -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
     
     <!-- Chosen Palette: Slate & Sky - Professional Aviation Theme -->
     <style>
@@ -272,6 +274,7 @@
                     <div class="bg-white rounded-xl shadow-sm p-6 border border-slate-100 space-y-4">
                         <p class="text-sm text-slate-600 mb-4">Download your cleaned/edited data to use in other apps.</p>
                         
+                        <!-- CSV -->
                         <button id="btn-export-csv" class="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 hover:border-slate-300 hover:text-sky-600 transition-all group shadow-sm">
                             <span class="text-xl group-hover:scale-110 transition-transform">📄</span>
                             <div class="text-left">
@@ -280,14 +283,25 @@
                             </div>
                         </button>
 
+                        <!-- PostgreSQL / Supabase -->
                         <button id="btn-export-sql" class="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 hover:border-slate-300 hover:text-indigo-600 transition-all group shadow-sm">
                             <span class="text-xl group-hover:scale-110 transition-transform">🗄️</span>
                             <div class="text-left">
-                                <span class="block font-semibold">SQL Dump (.sql)</span>
-                                <span class="block text-xs text-slate-400">Import to SQLite / Supabase</span>
+                                <span class="block font-semibold">Postgres SQL (.sql)</span>
+                                <span class="block text-xs text-slate-400">Import to Supabase / Postgres</span>
+                            </div>
+                        </button>
+                        
+                        <!-- SQLite Binary -->
+                        <button id="btn-export-sqlite-bin" class="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 hover:border-slate-300 hover:text-emerald-600 transition-all group shadow-sm">
+                            <span class="text-xl group-hover:scale-110 transition-transform">💾</span>
+                            <div class="text-left">
+                                <span class="block font-semibold">SQLite DB File (.db)</span>
+                                <span class="block text-xs text-slate-400">Binary DB for Apps / Local Tools</span>
                             </div>
                         </button>
 
+                        <!-- JSON -->
                         <button id="btn-export-json" class="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 hover:border-slate-300 hover:text-amber-600 transition-all group shadow-sm">
                             <span class="text-xl group-hover:scale-110 transition-transform">code</span>
                             <div class="text-left">
@@ -657,7 +671,7 @@
             }
         }
 
-        // --- 7. EXPORT LOGIC (NEW) ---
+        // --- 7. EXPORT LOGIC ---
         function triggerDownload(content, filename, mimeType) {
             const blob = new Blob([content], { type: mimeType });
             const url = URL.createObjectURL(blob);
@@ -685,7 +699,7 @@
         function exportSQL() {
             if(db.length === 0) return alert("No data to export!");
             
-            // Generate SQL statements
+            // Generate Supabase/PostgreSQL compatible statements
             let sql = `CREATE TABLE IF NOT EXISTS aircraft (
     icao TEXT PRIMARY KEY,
     name TEXT,
@@ -700,17 +714,81 @@
     rarity_score REAL
 );\n\n`;
 
-            sql += "BEGIN TRANSACTION;\n";
+            // PostgreSQL uses "ON CONFLICT" instead of "OR REPLACE"
             db.forEach(p => {
                 const escape = (str) => str ? `'${String(str).replace(/'/g, "''")}'` : 'NULL';
                 const val = (v) => v !== undefined && v !== null ? v : 'NULL';
-                const bool = (b) => b ? 1 : 0;
+                const bool = (b) => b ? 'TRUE' : 'FALSE';
 
-                sql += `INSERT OR REPLACE INTO aircraft VALUES (${escape(p.icao)}, ${escape(p.name)}, ${escape(p.cat)}, ${escape(p.sub)}, ${escape(p.rarity)}, ${bool(p.caught)}, ${val(p.speed)}, ${val(p.range)}, ${val(p.ceiling)}, ${val(p.weight)}, ${val(p.rarityScore)});\n`;
+                sql += `INSERT INTO aircraft (icao, name, category, subcategory, rarity, caught, speed, range, ceiling, weight, rarity_score) 
+VALUES (${escape(p.icao)}, ${escape(p.name)}, ${escape(p.cat)}, ${escape(p.sub)}, ${escape(p.rarity)}, ${bool(p.caught)}, ${val(p.speed)}, ${val(p.range)}, ${val(p.ceiling)}, ${val(p.weight)}, ${val(p.rarityScore)})
+ON CONFLICT (icao) DO UPDATE SET
+name = EXCLUDED.name,
+category = EXCLUDED.category,
+subcategory = EXCLUDED.subcategory,
+rarity = EXCLUDED.rarity,
+caught = EXCLUDED.caught,
+speed = EXCLUDED.speed,
+range = EXCLUDED.range,
+ceiling = EXCLUDED.ceiling,
+weight = EXCLUDED.weight,
+rarity_score = EXCLUDED.rarity_score;\n`;
             });
-            sql += "COMMIT;\n";
 
-            triggerDownload(sql, 'SkyCards_Dump.sql', 'application/sql');
+            triggerDownload(sql, 'SkyCards_Supabase.sql', 'application/sql');
+        }
+
+        // New Feature: SQLite Binary Export
+        async function exportSQLiteDB() {
+            if(db.length === 0) return alert("No data to export!");
+            const btn = document.getElementById('btn-export-sqlite-bin');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="animate-pulse">⏳ Generating .db...</span>';
+
+            try {
+                // Initialize SQL.js
+                const SQL = await initSqlJs({
+                    locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}`
+                });
+                
+                // Create DB in memory
+                const sqliteDB = new SQL.Database();
+                
+                // Schema
+                sqliteDB.run(`CREATE TABLE aircraft (
+                    icao TEXT PRIMARY KEY,
+                    name TEXT,
+                    category TEXT,
+                    subcategory TEXT,
+                    rarity TEXT,
+                    caught INTEGER,
+                    speed REAL,
+                    range REAL,
+                    ceiling REAL,
+                    weight REAL,
+                    rarity_score REAL
+                );`);
+
+                // Prepared Insert
+                const stmt = sqliteDB.prepare("INSERT INTO aircraft VALUES (?,?,?,?,?,?,?,?,?,?,?)");
+                db.forEach(p => {
+                    stmt.run([
+                        p.icao, p.name, p.cat, p.sub, p.rarity, p.caught ? 1 : 0, 
+                        p.speed, p.range, p.ceiling, p.weight, p.rarityScore
+                    ]);
+                });
+                stmt.free();
+
+                // Export binary
+                const binaryData = sqliteDB.export();
+                triggerDownload(binaryData, 'SkyCards_Local.db', 'application/vnd.sqlite3');
+                
+            } catch(e) {
+                console.error(e);
+                alert("Error generating DB file. See console for details.");
+            } finally {
+                btn.innerHTML = originalText;
+            }
         }
 
         // --- 8. RENDERING: DASHBOARD ---
@@ -892,6 +970,7 @@
             document.getElementById('btn-export-csv').addEventListener('click', exportCSV);
             document.getElementById('btn-export-json').addEventListener('click', exportJSON);
             document.getElementById('btn-export-sql').addEventListener('click', exportSQL);
+            document.getElementById('btn-export-sqlite-bin').addEventListener('click', exportSQLiteDB); // New Listener
 
             // Manual Form
             els.form.addEventListener('submit', (e) => {
