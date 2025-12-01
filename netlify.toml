@@ -7,4 +7,8 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  # Whitelist NEXT_PUBLIC_* variables for secrets scanning
+  # These are intentionally public and embedded in client-side code by Next.js
+  # Supabase anon keys are designed to be public (protected by RLS)
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_ANON_KEY,NEXT_PUBLIC_SUPABASE_URL"
 
