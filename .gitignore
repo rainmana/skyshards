@@ -38,3 +38,7 @@ next-env.d.ts
 
 .env.local
 
+CRITICAL_SECURITY_FIX.md
+SECURITY_NOTES.md
+.gitignore
+SECURITY_VALIDATION_COMPLETE.md

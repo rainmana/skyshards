@@ -9,7 +9,11 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { useMemo } from "react";
+import { Button } from "@/components/ui/button";
+import { useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
+import { CheckCircle2, Circle } from "lucide-react";
 
 interface AircraftDetailSheetProps {
   aircraft: AircraftWithCollection;
@@ -22,6 +26,11 @@ export function AircraftDetailSheet({
   open,
   onOpenChange,
 }: AircraftDetailSheetProps) {
+  const router = useRouter();
+  const supabase = createClient();
+  const [isCaught, setIsCaught] = useState(aircraft.caught);
+  const [isUpdating, setIsUpdating] = useState(false);
+
   // Calculate max values for progress bars (you might want to fetch these from the database)
   const maxValues = useMemo(() => ({
     speed: 1000,
@@ -29,6 +38,66 @@ export function AircraftDetailSheet({
     ceiling: 50000,
     weight: 1000,
   }), []);
+
+  // Update caught status when aircraft prop changes
+  useMemo(() => {
+    setIsCaught(aircraft.caught);
+  }, [aircraft.caught]);
+
+  const handleToggleCaught = async () => {
+    setIsUpdating(true);
+    try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.error('User not authenticated');
+        setIsUpdating(false);
+        return;
+      }
+
+      // Check if collection entry exists
+      const { data: existing } = await supabase
+        .from('user_collection')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('aircraft_id', aircraft.id)
+        .maybeSingle() as any;
+
+      if (existing) {
+        // Update existing entry using upsert
+        const { error } = await supabase
+          .from('user_collection')
+          .upsert({
+            id: existing.id,
+            user_id: user.id,
+            aircraft_id: aircraft.id,
+            caught: !isCaught,
+            obtained_at: !isCaught ? new Date().toISOString() : null,
+          } as any, { onConflict: 'id' });
+
+        if (error) throw error;
+      } else {
+        // Create new entry
+        const { error } = await supabase
+          .from('user_collection')
+          .insert({
+            user_id: user.id,
+            aircraft_id: aircraft.id,
+            caught: !isCaught,
+            obtained_at: !isCaught ? new Date().toISOString() : null,
+          } as any);
+
+        if (error) throw error;
+      }
+
+      setIsCaught(!isCaught);
+      router.refresh(); // Refresh to update the UI
+    } catch (error) {
+      console.error('Error updating caught status:', error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   const speedPercent = aircraft.speed
     ? (aircraft.speed / maxValues.speed) * 100
@@ -73,19 +142,45 @@ export function AircraftDetailSheet({
 
         <div className="mt-6 space-y-6">
           {/* Status */}
-          <div className="glass rounded-xl p-4 border border-slate-100 dark:border-slate-800 text-center">
-            <span className="block text-xs font-semibold text-sky-600 dark:text-sky-400 uppercase tracking-wider mb-1">
-              Status
-            </span>
-            <span
-              className={`text-lg font-bold ${
-                aircraft.caught
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-slate-400 dark:text-slate-500"
-              }`}
-            >
-              {aircraft.caught ? "Caught" : "Uncaught"}
-            </span>
+          <div className="glass rounded-xl p-4 border border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="block text-xs font-semibold text-sky-600 dark:text-sky-400 uppercase tracking-wider mb-1">
+                  Collection Status
+                </span>
+                <span
+                  className={`text-lg font-bold ${
+                    isCaught
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-slate-400 dark:text-slate-500"
+                  }`}
+                >
+                  {isCaught ? "Caught" : "Uncaught"}
+                </span>
+              </div>
+              <Button
+                onClick={handleToggleCaught}
+                disabled={isUpdating}
+                variant={isCaught ? "default" : "outline"}
+                className={isCaught 
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white" 
+                  : ""}
+              >
+                {isUpdating ? (
+                  "Updating..."
+                ) : isCaught ? (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Mark as Uncaught
+                  </>
+                ) : (
+                  <>
+                    <Circle className="h-4 w-4 mr-2" />
+                    Mark as Caught
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
 
           {/* Category Info */}
