@@ -21,22 +21,40 @@ export function UserMenu() {
 
   useEffect(() => {
     const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setUser(user);
-      setLoading(false);
+      try {
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
+        
+        if (error) {
+          console.error('Error getting user:', error);
+        }
+        
+        setUser(user);
+      } catch (err) {
+        console.error('Error in getUser:', err);
+      } finally {
+        setLoading(false);
+      }
     };
 
     getUser();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
+    try {
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((_event, session) => {
+        setUser(session?.user ?? null);
+      });
 
-    return () => subscription.unsubscribe();
+      return () => {
+        subscription?.unsubscribe();
+      };
+    } catch (err) {
+      console.error('Error setting up auth state listener:', err);
+      return () => {};
+    }
   }, [supabase]);
 
   const handleSignOut = async () => {
