@@ -1,28 +1,15 @@
-import { createClient } from "@/lib/supabase/server";
 import { DashboardStats } from "@/components/dashboard/dashboard-stats";
 import { RarityChart } from "@/components/dashboard/rarity-chart";
 import { CategoryChart } from "@/components/dashboard/category-chart";
-import { Aircraft } from "@/lib/supabase/types";
+import { AircraftWithCollection } from "@/lib/supabase/types";
+import { getAircraftWithCollection } from "@/lib/supabase/queries";
+import { getCurrentUser } from "@/lib/auth";
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
+  const user = await getCurrentUser();
   
-  // Fetch all aircraft data
-  let aircraftData: Aircraft[] = [];
-  
-  try {
-    const { data: aircraft, error } = await supabase
-      .from("aircraft")
-      .select("*");
-
-    if (error) {
-      console.error("Error fetching aircraft:", error);
-    } else {
-      aircraftData = aircraft || [];
-    }
-  } catch (error) {
-    console.error("Error connecting to Supabase:", error);
-  }
+  // Fetch all aircraft visible to user (Master + Custom) with collection status
+  const aircraftData: AircraftWithCollection[] = await getAircraftWithCollection(user?.id || null);
 
   return (
     <div className="space-y-8 animate-fade-in">

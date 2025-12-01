@@ -1,27 +1,13 @@
-import { createClient } from "@/lib/supabase/server";
 import { BattleLabView } from "@/components/battle-lab/battle-lab-view";
 import { Aircraft } from "@/lib/supabase/types";
+import { getAircraftForUser } from "@/lib/supabase/queries";
+import { getCurrentUser } from "@/lib/auth";
 
 export default async function BattleLabPage() {
-  const supabase = await createClient();
+  const user = await getCurrentUser();
   
-  // Fetch all aircraft data
-  let aircraftData: Aircraft[] = [];
-  
-  try {
-    const { data: aircraft, error } = await supabase
-      .from("aircraft")
-      .select("*")
-      .order("rarity_score", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching aircraft:", error);
-    } else {
-      aircraftData = aircraft || [];
-    }
-  } catch (error) {
-    console.error("Error connecting to Supabase:", error);
-  }
+  // Fetch all aircraft visible to user (Master + Custom)
+  const aircraftData: Aircraft[] = await getAircraftForUser(user?.id || null);
 
   return (
     <div className="space-y-8 animate-fade-in">
