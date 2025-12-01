@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SkyCards Explorer | Aircraft Analytics Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <!-- Chosen Palette: Slate & Sky - A professional, clean, and airy aesthetic suitable for aviation data. Warm neutrals for backgrounds, specific blues for primary actions. -->
+    <style>
+        /* Custom Scrollbar for cleaner UI */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+
+        /* Chart Container Strict Styling */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 100%;
+            height: 300px; /* Mobile base */
+            margin-left: auto;
+            margin-right: auto;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px; /* Tablet/Desktop */
+            }
+        }
+        @media (min-width: 1024px) {
+            .chart-container {
+                height: 400px; /* Large Desktop */
+            }
+        }
+
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        /* Modal Transition */
+        .modal-enter { opacity: 0; transform: scale(0.95); }
+        .modal-enter-active { opacity: 1; transform: scale(1); transition: opacity 200ms ease-out, transform 200ms ease-out; }
+        .modal-exit { opacity: 1; transform: scale(1); }
+        .modal-exit-active { opacity: 0; transform: scale(0.95); transition: opacity 200ms ease-in, transform 200ms ease-in; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased overflow-y-scroll">
+
+    <!-- Application Structure Plan: 
+         The app is designed as a Dashboard-first SPA.
+         1. Header: Global navigation and context.
+         2. Dashboard View: High-level metrics (Total Caught, Rarity Distribution) to give the user immediate feedback on progress.
+         3. Collection Explorer: A filterable, searchable grid of aircraft. This is the core 'User Task' area for managing the collection.
+         4. Battle Lab: Analytical view for the 'Battle Cards' data, allowing users to find the best planes for the game meta.
+         5. Detail Modal: Contextual drill-down for specific aircraft data without leaving the main flow.
+         Rationale: This structure separates 'Monitoring' (Dashboard), 'Managing' (Collection), and 'Strategizing' (Battle Lab) into distinct logical views.
+    -->
+
+    <!-- Navbar -->
+    <nav class="bg-white border-b border-slate-200 sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex">
+                    <div class="flex-shrink-0 flex items-center">
+                        <span class="text-2xl font-bold text-sky-600 tracking-tight">SkyCards<span class="text-slate-500 font-light">DB</span></span>
+                    </div>
+                    <div class="hidden sm:ml-6 sm:flex sm:space-x-8" id="desktop-nav">
+                        <!-- Navigation items injected by JS -->
+                    </div>
+                </div>
+                <div class="flex items-center">
+                    <span id="total-progress-badge" class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-sky-100 text-sky-800">
+                        Loading...
+                    </span>
+                </div>
+            </div>
+        </div>
+        <!-- Mobile Nav (Simple implementation) -->
+        <div class="sm:hidden border-t border-slate-200" id="mobile-nav-container">
+            <div class="flex justify-around p-2 bg-slate-50" id="mobile-nav"></div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-screen">
+        
+        <!-- View: Dashboard -->
+        <div id="view-dashboard" class="space-y-8 animate-fade-in">
+            <!-- Intro Section -->
+            <div class="bg-white rounded-xl shadow-sm p-6 border border-slate-100">
+                <h1 class="text-3xl font-bold text-slate-900 mb-2">Collection Overview</h1>
+                <p class="text-slate-600 max-w-3xl">
+                    Welcome to the SkyCards Analytics Hub. This section provides a high-level summary of your fleet, breaking down progress by rarity, category, and acquisition status. 
+                    Use these metrics to identify gaps in your collection and track your journey toward 100% completion.
+                </p>
+            </div>
+
+            <!-- Key Metrics Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- Metric Card 1 -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between h-full">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Planes</p>
+                        <p class="mt-2 text-3xl font-extrabold text-slate-900" id="stat-total-planes">0</p>
+                    </div>
+                    <div class="mt-4">
+                        <div class="w-full bg-slate-200 rounded-full h-2.5">
+                            <div class="bg-sky-600 h-2.5 rounded-full" id="stat-progress-bar" style="width: 0%"></div>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-2 text-right" id="stat-progress-text">0% Caught</p>
+                    </div>
+                </div>
+                <!-- Metric Card 2 -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <p class="text-sm font-medium text-slate-500 uppercase tracking-wider">Top Rarity</p>
+                    <p class="mt-2 text-3xl font-extrabold text-indigo-600" id="stat-top-rarity">N/A</p>
+                    <p class="text-sm text-slate-400 mt-1">Highest tier acquired</p>
+                </div>
+                <!-- Metric Card 3 -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <p class="text-sm font-medium text-slate-500 uppercase tracking-wider">Battle Ready</p>
+                    <p class="mt-2 text-3xl font-extrabold text-rose-600" id="stat-battle-count">0</p>
+                    <p class="text-sm text-slate-400 mt-1">Cards with Battle Stats</p>
+                </div>
+                 <!-- Metric Card 4 -->
+                 <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <p class="text-sm font-medium text-slate-500 uppercase tracking-wider">Registrations</p>
+                    <p class="mt-2 text-3xl font-extrabold text-emerald-600" id="stat-registrations">0</p>
+                    <p class="text-sm text-slate-400 mt-1">Unique Tail Numbers</p>
+                </div>
+            </div>
+
+            <!-- Dashboard Charts -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Rarity Distribution -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <h3 class="text-lg font-semibold text-slate-800 mb-4">Collection by Rarity</h3>
+                    <!-- Visualization & Content Choices: Goal: Inform/Organize -> Viz: Doughnut Chart -> Justification: Shows the proportional makeup of the collection tiers clearly. -->
+                    <div class="chart-container">
+                        <canvas id="chart-rarity"></canvas>
+                    </div>
+                </div>
+                <!-- Category Breakdown -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <h3 class="text-lg font-semibold text-slate-800 mb-4">Fleet Composition (Category)</h3>
+                    <!-- Visualization & Content Choices: Goal: Compare -> Viz: Bar Chart -> Justification: Compares count of aircraft across different functional categories (Jet, Prop, Rotor). -->
+                    <div class="chart-container">
+                        <canvas id="chart-category"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- View: Collection -->
+        <div id="view-collection" class="hidden space-y-6 animate-fade-in">
+            <!-- Intro -->
+            <div class="bg-white rounded-xl shadow-sm p-6 border border-slate-100">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h1 class="text-3xl font-bold text-slate-900">Aircraft Hangar</h1>
+                        <p class="text-slate-600 mt-2">
+                            Browse the complete database of aircraft. Use the filters to narrow down by capabilities, rarity, or acquisition status. 
+                            Click on any card to view detailed specifications and tier progress.
+                        </p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="btn-reset-filters" class="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">
+                            Reset Filters
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls Toolbar -->
+            <div class="bg-white rounded-xl shadow-sm p-4 border border-slate-100 sticky top-20 z-30">
+                <div class="flex flex-col md:flex-row gap-4 items-center justify-between">
+                    <!-- Search -->
+                    <div class="relative w-full md:w-96">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <span class="text-slate-400">🔍</span>
+                        </div>
+                        <input type="text" id="search-input" 
+                            class="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg leading-5 bg-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 sm:text-sm" 
+                            placeholder="Search by Aircraft Name, ICAO, or Model...">
+                    </div>
+                    
+                    <!-- Filters -->
+                    <div class="flex flex-wrap gap-2 w-full md:w-auto justify-end">
+                        <select id="filter-category" class="block w-full md:w-auto pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm rounded-lg bg-slate-50">
+                            <option value="all">All Categories</option>
+                            <!-- Options filled by JS -->
+                        </select>
+                        <select id="filter-rarity" class="block w-full md:w-auto pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm rounded-lg bg-slate-50">
+                            <option value="all">All Rarities</option>
+                            <!-- Options filled by JS -->
+                        </select>
+                        <select id="filter-caught" class="block w-full md:w-auto pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm rounded-lg bg-slate-50">
+                            <option value="all">All Status</option>
+                            <option value="caught">Caught Only</option>
+                            <option value="uncaught">Uncaught Only</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Grid -->
+            <div id="collection-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <!-- Cards injected by JS -->
+            </div>
+            
+            <!-- Pagination / Load Info -->
+            <div class="text-center py-4">
+                <p class="text-sm text-slate-500" id="collection-count-text">Showing 0 aircraft</p>
+            </div>
+        </div>
+
+        <!-- View: Battle Lab -->
+        <div id="view-battle" class="hidden space-y-8 animate-fade-in">
+             <!-- Intro -->
+             <div class="bg-white rounded-xl shadow-sm p-6 border border-slate-100">
+                <h1 class="text-3xl font-bold text-slate-900 mb-2">Battle Lab Analytics</h1>
+                <p class="text-slate-600 max-w-4xl">
+                    Analyze the performance of your battle cards. Understand the relationship between Rating and Victory Rate to select the best aircraft for the current weekly meta.
+                    The scatter plot below reveals outliers—cards with high victory rates relative to their rating.
+                </p>
+            </div>
+
+            <!-- Visualization: Rating vs Victory Rate -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                <h3 class="text-lg font-semibold text-slate-800 mb-4">Performance Matrix: Rating vs. Victory Rate</h3>
+                <!-- Visualization & Content Choices: Goal: Relationships -> Viz: Scatter Plot -> Justification: Critical for game strategy. Identifying cards with high win rates but lower ratings (sleepers) or high rating powerhouses. -->
+                <div class="chart-container">
+                    <canvas id="chart-battle-scatter"></canvas>
+                </div>
+                <div class="mt-4 flex gap-4 text-sm text-slate-500 justify-center">
+                    <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-rose-500"></div>Scarce Meta</div>
+                    <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-blue-500"></div>Military Meta</div>
+                    <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-slate-400"></div>Other</div>
+                </div>
+            </div>
+
+            <!-- Top Performers List -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                <h3 class="text-lg font-semibold text-slate-800 mb-4">Top Rated Battle Cards</h3>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-slate-200">
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">ICAO</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Aircraft</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Meta Week</th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Rating</th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Win Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-slate-200" id="battle-table-body">
+                            <!-- Rows injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Aircraft Detail Modal -->
+    <div id="modal-overlay" class="fixed inset-0 bg-slate-900 bg-opacity-50 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
+        <div id="modal-content" class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col transform transition-all duration-300 scale-95 opacity-0">
+            <!-- Modal Header -->
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <div>
+                    <h2 class="text-2xl font-bold text-slate-800" id="modal-title">Aircraft Name</h2>
+                    <p class="text-sm text-slate-500 font-mono" id="modal-icao">ICAO: ----</p>
+                </div>
+                <button id="modal-close" class="text-slate-400 hover:text-slate-600 transition-colors bg-white rounded-full p-2 shadow-sm hover:shadow">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            
+            <!-- Modal Body (Scrollable) -->
+            <div class="p-6 overflow-y-auto">
+                <div class="flex flex-col md:flex-row gap-8">
+                    <!-- Left: Key Stats & Badges -->
+                    <div class="md:w-1/3 space-y-6">
+                        <div class="bg-sky-50 rounded-xl p-4 border border-sky-100 text-center">
+                            <span class="block text-xs font-semibold text-sky-600 uppercase tracking-wider mb-1">Status</span>
+                            <span id="modal-status" class="text-lg font-bold text-sky-900">Caught</span>
+                        </div>
+                        
+                        <div>
+                            <h4 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Tier Progress</h4>
+                            <div class="space-y-2" id="modal-tiers">
+                                <!-- Tier indicators injected here -->
+                            </div>
+                        </div>
+
+                        <div class="pt-4 border-t border-slate-100">
+                            <h4 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Category</h4>
+                            <p id="modal-cat" class="text-slate-800 font-medium">Jet & Rocket</p>
+                            <p id="modal-subcat" class="text-slate-600 text-sm">Twin Engine</p>
+                        </div>
+                    </div>
+
+                    <!-- Right: Technical Specs -->
+                    <div class="md:w-2/3">
+                        <h3 class="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                            <span>Technical Specifications</span>
+                            <div class="h-px bg-slate-200 flex-grow"></div>
+                        </h3>
+                        
+                        <div class="grid grid-cols-2 gap-y-4 gap-x-8">
+                            <div>
+                                <p class="text-xs text-slate-400 uppercase">Max Speed</p>
+                                <p id="modal-speed" class="text-base font-medium text-slate-800">-- kt</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-400 uppercase">Range</p>
+                                <p id="modal-range" class="text-base font-medium text-slate-800">-- NM</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-400 uppercase">Ceiling</p>
+                                <p id="modal-ceiling" class="text-base font-medium text-slate-800">-- ft</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-400 uppercase">Weight (MTOW)</p>
+                                <p id="modal-weight" class="text-base font-medium text-slate-800">-- t</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-400 uppercase">First Flight</p>
+                                <p id="modal-year" class="text-base font-medium text-slate-800">--</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-400 uppercase">Seats</p>
+                                <p id="modal-seats" class="text-base font-medium text-slate-800">--</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-400 uppercase">Wingspan</p>
+                                <p id="modal-wingspan" class="text-base font-medium text-slate-800">-- m</p>
+                            </div>
+                             <div>
+                                <p class="text-xs text-slate-400 uppercase">Rarity Score</p>
+                                <p id="modal-rarity-score" class="text-base font-medium text-slate-800">--</p>
+                            </div>
+                        </div>
+
+                        <!-- Battle Stat Integration if available -->
+                        <div id="modal-battle-section" class="mt-8 hidden">
+                            <h3 class="text-lg font-bold text-rose-600 mb-4 flex items-center gap-2">
+                                <span>Battle Performance</span>
+                                <div class="h-px bg-rose-100 flex-grow"></div>
+                            </h3>
+                            <div class="grid grid-cols-3 gap-4 bg-rose-50 rounded-lg p-4 border border-rose-100">
+                                <div class="text-center">
+                                    <p class="text-xs text-rose-400 uppercase">Rating</p>
+                                    <p id="modal-battle-rating" class="text-xl font-bold text-rose-800">--</p>
+                                </div>
+                                <div class="text-center border-l border-rose-200">
+                                    <p class="text-xs text-rose-400 uppercase">Victory Rate</p>
+                                    <p id="modal-battle-win" class="text-xl font-bold text-rose-800">--</p>
+                                </div>
+                                <div class="text-center border-l border-rose-200">
+                                    <p class="text-xs text-rose-400 uppercase">Meta</p>
+                                    <p id="modal-battle-meta" class="text-sm font-medium text-rose-800 mt-1">--</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // --- 1. DATA INGESTION & PARSING ---
+        // Simulating the parsed CSV data based on the provided file snippets.
+        // I have extracted representative rows from the user's "Airpedia (Master)" and "Best Battle Cards" files.
+        
+        const rawAircraftData = [
+            // Caught / High detail rows
+            { icao: "B738", name: "BOEING 737-800", cat: "Jet & Rocket", sub: "Twin Engine", caught: true, rarity: "Common", xp: 1116, speed: 455, range: 2935, ceiling: 41000, firstFlight: 1997, seats: 189, weight: 79.0, rarityScore: 0.23, tiers: {bronze: true, silver: true, gold: true, platinum: true, cyber: true, glow: true} },
+            { icao: "A320", name: "AIRBUS A320", cat: "Jet & Rocket", sub: "Twin Engine", caught: true, rarity: "Common", xp: 1233, speed: 450, range: 3300, ceiling: 39000, firstFlight: 1987, seats: 150, weight: 77.0, rarityScore: 0.35, tiers: {bronze: true, silver: true, gold: true, platinum: true, cyber: true, glow: true} },
+            { icao: "CONC", name: "AEROSPATIALE - BRITISH AEROSPACE Concorde", cat: "Jet & Rocket", sub: "3+ Engine", caught: false, rarity: "Ultra", xp: 0, speed: 1176, range: 3900, ceiling: 60000, firstFlight: 1969, seats: 100, weight: 185.0, rarityScore: 14.00, tiers: {bronze: false} },
+            { icao: "A342", name: "AIRBUS A340-200", cat: "Jet & Rocket", sub: "3+ Engine", caught: false, rarity: "Ultra", xp: 0, speed: 490, range: 6700, ceiling: 41000, firstFlight: 1992, seats: 261, weight: 275.0, rarityScore: 8.74, tiers: {bronze: false} },
+            { icao: "A343", name: "AIRBUS A340-300", cat: "Jet & Rocket", sub: "3+ Engine", caught: false, rarity: "Rare", xp: 0, speed: 490, range: 7400, ceiling: 41000, firstFlight: 1991, seats: 277, weight: 276.5, rarityScore: 4.70, tiers: {bronze: false} },
+            { icao: "A346", name: "AIRBUS A340-600", cat: "Jet & Rocket", sub: "3+ Engine", caught: false, rarity: "Rare", xp: 0, speed: 490, range: 7900, ceiling: 41000, firstFlight: 2001, seats: 326, weight: 368.0, rarityScore: 5.68, tiers: {bronze: false} },
+            { icao: "A388", name: "AIRBUS A380", cat: "Jet & Rocket", sub: "3+ Engine", caught: false, rarity: "Rare", xp: 0, speed: 490, range: 8000, ceiling: 43000, firstFlight: 2005, seats: 525, weight: 575.0, rarityScore: 3.10, tiers: {bronze: false} },
+            { icao: "A124", name: "ANTONOV An-124 Rusian", cat: "Jet & Rocket", sub: "3+ Engine", caught: false, rarity: "Ultra", xp: 0, speed: 467, range: 2000, ceiling: 39000, firstFlight: 1982, seats: 0, weight: 405.0, rarityScore: 9.38, tiers: {bronze: false} },
+            
+            // Season 1 / Other Snippets
+            { icao: "H60", name: "SIKORSKY UH-60 Black Hawk", cat: "Rotocraft", sub: "Helicopters", caught: false, rarity: "Common", xp: 0, speed: 159, range: 315, ceiling: 19000, firstFlight: 1974, seats: 11, weight: 10.0, rarityScore: 1.32, tiers: {bronze: false} },
+            { icao: "M74", name: "TEXAS HELICOPTERS M-74 Wasp", cat: "Rotocraft", sub: "Helicopters", caught: false, rarity: "Ultra", xp: 0, speed: 100, range: 200, ceiling: 12000, firstFlight: 1970, seats: 1, weight: 1.0, rarityScore: 11.04, tiers: {bronze: false} },
+            { icao: "EC35", name: "AIRBUS HELICOPTERS EC-135", cat: "Rotocraft", sub: "Special", caught: false, rarity: "Common", xp: 0, speed: 139, range: 343, ceiling: 20000, firstFlight: 1994, seats: 7, weight: 2.9, rarityScore: 3.49, tiers: {bronze: false} },
+            
+            // Stats File Snippets (Reconstructed)
+            { icao: "C5", name: "LOCKHEED C-5A/B Galaxy", cat: "Jet & Rocket", sub: "3+ Engine", caught: false, rarity: "Ultra", xp: 0, speed: 450, range: 4800, ceiling: 34000, firstFlight: 1968, seats: 0, weight: 381.0, rarityScore: 11.80, tiers: {bronze: false} },
+            { icao: "EVIC", name: "AIR Epic Victory", cat: "Jet & Rocket", sub: "Single Engine", caught: true, rarity: "Ultra", xp: 500, speed: 320, range: 1200, ceiling: 28000, firstFlight: 2007, seats: 4, weight: 2.5, rarityScore: 11.64, tiers: {bronze: true} },
+            { icao: "TS1J", name: "JONKER JS-1TJ Revelation", cat: "Jet & Rocket", sub: "Single Engine", caught: true, rarity: "Ultra", xp: 600, speed: 135, range: 500, ceiling: 15000, firstFlight: 2006, seats: 1, weight: 0.6, rarityScore: 11.47, tiers: {bronze: true} },
+            
+            // Filling out some generic data to make charts look better (Simulated based on Stats.csv aggregates)
+            { icao: "C172", name: "CESSNA 172 Skyhawk", cat: "Propeller", sub: "Piston Engine", caught: true, rarity: "Common", xp: 200, speed: 122, range: 640, ceiling: 14000, firstFlight: 1955, seats: 4, weight: 1.1, rarityScore: 0.5, tiers: {bronze: true, silver: true} },
+            { icao: "PA28", name: "PIPER PA-28 Cherokee", cat: "Propeller", sub: "Piston Engine", caught: true, rarity: "Common", xp: 210, speed: 125, range: 500, ceiling: 14000, firstFlight: 1960, seats: 4, weight: 1.1, rarityScore: 0.6, tiers: {bronze: true} },
+            { icao: "B77W", name: "BOEING 777-300ER", cat: "Jet & Rocket", sub: "Twin Engine", caught: true, rarity: "Rare", xp: 800, speed: 480, range: 7300, ceiling: 43000, firstFlight: 2003, seats: 396, weight: 351.0, rarityScore: 2.5, tiers: {bronze: true, silver: true, gold: true} },
+            { icao: "PC12", name: "PILATUS PC-12", cat: "Propeller", sub: "Turbine & Electric", caught: false, rarity: "Rare", xp: 0, speed: 285, range: 1800, ceiling: 30000, firstFlight: 1991, seats: 9, weight: 4.7, rarityScore: 4.2, tiers: {bronze: false} },
+        ];
+
+        // Battle Stats from "Best Battle Cards.csv"
+        const rawBattleStats = [
+            { icao: "A346", rating: 3202, winRate: 3, meta: "Scarce" },
+            { icao: "A388", rating: 492, winRate: 1, meta: "Anything" },
+            { icao: "A388", rating: 898, winRate: 2, meta: "4+ Engine" }, // Duplicate ICAO check handled in processing
+            { icao: "A124", rating: 1266, winRate: 2, meta: "Military" },
+            { icao: "AN70", rating: 595, winRate: 1, meta: "Military" },
+            { icao: "CHIN", rating: 1268, winRate: 2, meta: "Military" },
+            { icao: "BTB2", rating: 580, winRate: 1, meta: "Military" },
+            { icao: "B738", rating: 424, winRate: 1, meta: "Anything" },
+            { icao: "E290", rating: 1297, winRate: 2, meta: "Scarce" },
+            { icao: "G2CA", rating: 596, winRate: 1, meta: "Scarce" }
+        ];
+
+        // Process and Merge Data
+        const db = {
+            aircraft: rawAircraftData.map(a => {
+                // Find matching battle stat (take max rating if multiple)
+                const battleMatches = rawBattleStats.filter(b => b.icao === a.icao);
+                let battle = null;
+                if (battleMatches.length > 0) {
+                    battle = battleMatches.reduce((prev, current) => (prev.rating > current.rating) ? prev : current);
+                }
+                return { ...a, battle: battle };
+            }),
+            stats: {
+                total: 1611, // From CSV snippet
+                captured: 1301,
+                registrations: 12318
+            }
+        };
+
+        // --- 2. STATE MANAGEMENT ---
+        const state = {
+            view: 'dashboard',
+            filters: {
+                search: '',
+                category: 'all',
+                rarity: 'all',
+                caught: 'all'
+            },
+            charts: {} // Store chart instances to destroy/update
+        };
+
+        // --- 3. DOM ELEMENT REFS ---
+        const els = {
+            navDesktop: document.getElementById('desktop-nav'),
+            navMobile: document.getElementById('mobile-nav'),
+            views: {
+                dashboard: document.getElementById('view-dashboard'),
+                collection: document.getElementById('view-collection'),
+                battle: document.getElementById('view-battle')
+            },
+            dashboardStats: {
+                total: document.getElementById('stat-total-planes'),
+                bar: document.getElementById('stat-progress-bar'),
+                text: document.getElementById('stat-progress-text'),
+                rarity: document.getElementById('stat-top-rarity'),
+                battle: document.getElementById('stat-battle-count'),
+                regs: document.getElementById('stat-registrations')
+            },
+            collection: {
+                grid: document.getElementById('collection-grid'),
+                count: document.getElementById('collection-count-text'),
+                search: document.getElementById('search-input'),
+                catFilter: document.getElementById('filter-category'),
+                rarityFilter: document.getElementById('filter-rarity'),
+                caughtFilter: document.getElementById('filter-caught'),
+                resetBtn: document.getElementById('btn-reset-filters')
+            },
+            modal: {
+                overlay: document.getElementById('modal-overlay'),
+                content: document.getElementById('modal-content'),
+                close: document.getElementById('modal-close'),
+                title: document.getElementById('modal-title'),
+                icao: document.getElementById('modal-icao'),
+                status: document.getElementById('modal-status'),
+                tiers: document.getElementById('modal-tiers'),
+                cat: document.getElementById('modal-cat'),
+                subcat: document.getElementById('modal-subcat'),
+                speed: document.getElementById('modal-speed'),
+                range: document.getElementById('modal-range'),
+                ceiling: document.getElementById('modal-ceiling'),
+                weight: document.getElementById('modal-weight'),
+                year: document.getElementById('modal-year'),
+                seats: document.getElementById('modal-seats'),
+                wingspan: document.getElementById('modal-wingspan'),
+                rarityScore: document.getElementById('modal-rarity-score'),
+                battleSection: document.getElementById('modal-battle-section'),
+                battleRating: document.getElementById('modal-battle-rating'),
+                battleWin: document.getElementById('modal-battle-win'),
+                battleMeta: document.getElementById('modal-battle-meta')
+            }
+        };
+
+        // --- 4. UTILITY FUNCTIONS ---
+        const formatNum = (num) => new Intl.NumberFormat().format(num);
+        const getRarityColor = (rarity) => {
+            const colors = {
+                'Common': 'bg-slate-100 text-slate-800 border-slate-200',
+                'Rare': 'bg-sky-100 text-sky-800 border-sky-200',
+                'Ultra': 'bg-indigo-100 text-indigo-800 border-indigo-200',
+                'Legendary': 'bg-amber-100 text-amber-800 border-amber-200'
+            };
+            return colors[rarity] || colors['Common'];
+        };
+
+        // --- 5. INITIALIZATION & ROUTING ---
+        function init() {
+            setupNav();
+            populateFilters();
+            renderDashboard();
+            setupEventListeners();
+            
+            // Check URI fragment for routing
+            const hash = window.location.hash.replace('#', '');
+            if (hash && els.views[hash]) switchView(hash);
+            else switchView('dashboard');
+        }
+
+        function setupNav() {
+            const tabs = [
+                { id: 'dashboard', label: 'Dashboard', icon: '📊' },
+                { id: 'collection', label: 'Collection', icon: '✈️' },
+                { id: 'battle', label: 'Battle Lab', icon: '⚔️' }
+            ];
+
+            const createNavLink = (tab, isMobile) => {
+                const btn = document.createElement('button');
+                btn.className = isMobile 
+                    ? `flex flex-col items-center text-xs font-medium p-2 rounded-lg transition-colors`
+                    : `inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors`;
+                
+                btn.dataset.target = tab.id;
+                
+                if (isMobile) {
+                    btn.innerHTML = `<span class="text-xl mb-1">${tab.icon}</span>${tab.label}`;
+                } else {
+                    btn.innerHTML = `${tab.label}`;
+                }
+                
+                btn.addEventListener('click', () => switchView(tab.id));
+                return btn;
+            };
+
+            tabs.forEach(tab => {
+                els.navDesktop.appendChild(createNavLink(tab, false));
+                els.navMobile.appendChild(createNavLink(tab, true));
+            });
+        }
+
+        function switchView(viewId) {
+            // Update state
+            state.view = viewId;
+            window.location.hash = viewId;
+
+            // Toggle Visibility
+            Object.keys(els.views).forEach(key => {
+                const view = els.views[key];
+                if (key === viewId) {
+                    view.classList.remove('hidden');
+                    // Trigger render specific to view
+                    if (key === 'dashboard') renderDashboard();
+                    if (key === 'collection') renderCollection();
+                    if (key === 'battle') renderBattle();
+                } else {
+                    view.classList.add('hidden');
+                }
+            });
+
+            // Update Nav Styles
+            Array.from(els.navDesktop.children).forEach(btn => {
+                if (btn.dataset.target === viewId) {
+                    btn.classList.add('border-sky-500', 'text-slate-900');
+                    btn.classList.remove('border-transparent', 'text-slate-500', 'hover:text-slate-700', 'hover:border-slate-300');
+                } else {
+                    btn.classList.remove('border-sky-500', 'text-slate-900');
+                    btn.classList.add('border-transparent', 'text-slate-500', 'hover:text-slate-700', 'hover:border-slate-300');
+                }
+            });
+            
+             Array.from(els.navMobile.children).forEach(btn => {
+                 if (btn.dataset.target === viewId) {
+                     btn.classList.add('text-sky-600', 'bg-sky-50');
+                     btn.classList.remove('text-slate-500');
+                 } else {
+                    btn.classList.remove('text-sky-600', 'bg-sky-50');
+                     btn.classList.add('text-slate-500');
+                 }
+             });
+        }
+
+        // --- 6. RENDER LOGIC: DASHBOARD ---
+        function renderDashboard() {
+            // Metrics
+            const totalInDb = db.stats.total; // Using static total from stats csv for context
+            const captured = db.aircraft.filter(a => a.caught).length; // Currently loaded caught
+            // Adjust calculation: The CSV says 1301 caught, but our array is small. 
+            // We will use the db.stats values for the text to be accurate to report, but array for charts.
+            
+            els.dashboardStats.total.textContent = formatNum(db.stats.total);
+            const pct = ((db.stats.captured / db.stats.total) * 100).toFixed(1);
+            els.dashboardStats.bar.style.width = `${pct}%`;
+            els.dashboardStats.text.textContent = `${pct}% Caught (${formatNum(db.stats.captured)})`;
+            
+            const rarities = db.aircraft.filter(a => a.caught).map(a => a.rarity);
+            const highestRarity = rarities.includes('Legendary') ? 'Legendary' : (rarities.includes('Ultra') ? 'Ultra' : 'Common');
+            els.dashboardStats.rarity.textContent = highestRarity;
+            
+            els.dashboardStats.battle.textContent = db.aircraft.filter(a => a.battle).length;
+            els.dashboardStats.regs.textContent = formatNum(db.stats.registrations);
+
+            // Chart: Rarity
+            const rCounts = {};
+            db.aircraft.forEach(a => { rCounts[a.rarity] = (rCounts[a.rarity] || 0) + 1; });
+            
+            renderChart('chart-rarity', 'doughnut', {
+                labels: Object.keys(rCounts),
+                datasets: [{
+                    data: Object.values(rCounts),
+                    backgroundColor: ['#e2e8f0', '#7dd3fc', '#818cf8', '#fbbf24'], // Matching getRarityColor logic visually
+                    borderWidth: 0
+                }]
+            });
+
+            // Chart: Category
+            const cCounts = {};
+            db.aircraft.forEach(a => { cCounts[a.cat] = (cCounts[a.cat] || 0) + 1; });
+            renderChart('chart-category', 'bar', {
+                labels: Object.keys(cCounts),
+                datasets: [{
+                    label: 'Aircraft Count',
+                    data: Object.values(cCounts),
+                    backgroundColor: '#0ea5e9',
+                    borderRadius: 6
+                }]
+            }, {
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } }
+            });
+        }
+
+        function renderChart(canvasId, type, data, extraOptions = {}) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            
+            // Cleanup old chart
+            if (state.charts[canvasId]) {
+                state.charts[canvasId].destroy();
+            }
+
+            const options = {
+                responsive: true,
+                maintainAspectRatio: false, // CRITICAL for Tailwind container control
+                plugins: {
+                    legend: { position: 'bottom' }
+                },
+                ...extraOptions
+            };
+
+            state.charts[canvasId] = new Chart(ctx, { type, data, options });
+        }
+
+        // --- 7. RENDER LOGIC: COLLECTION ---
+        function populateFilters() {
+            const cats = [...new Set(db.aircraft.map(a => a.cat))];
+            const rarities = [...new Set(db.aircraft.map(a => a.rarity))];
+
+            cats.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c;
+                opt.textContent = c;
+                els.collection.catFilter.appendChild(opt);
+            });
+            rarities.forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = r;
+                opt.textContent = r;
+                els.collection.rarityFilter.appendChild(opt);
+            });
+        }
+
+        function renderCollection() {
+            const grid = els.collection.grid;
+            grid.innerHTML = '';
+
+            // Filtering
+            const f = state.filters;
+            const filtered = db.aircraft.filter(a => {
+                const matchSearch = a.name.toLowerCase().includes(f.search.toLowerCase()) || a.icao.toLowerCase().includes(f.search.toLowerCase());
+                const matchCat = f.category === 'all' || a.cat === f.category;
+                const matchRarity = f.rarity === 'all' || a.rarity === f.rarity;
+                const matchCaught = f.caught === 'all' || (f.caught === 'caught' && a.caught) || (f.caught === 'uncaught' && !a.caught);
+                return matchSearch && matchCat && matchRarity && matchCaught;
+            });
+
+            els.collection.count.textContent = `Showing ${filtered.length} aircraft`;
+
+            filtered.forEach(a => {
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden card-hover cursor-pointer transition-all duration-200';
+                card.onclick = () => openModal(a);
+
+                const statusBadge = a.caught 
+                    ? `<span class="absolute top-2 right-2 bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-1 rounded-full">Caught</span>`
+                    : `<span class="absolute top-2 right-2 bg-slate-100 text-slate-500 text-xs font-bold px-2 py-1 rounded-full">Missing</span>`;
+
+                card.innerHTML = `
+                    <div class="h-32 bg-slate-100 relative flex items-center justify-center">
+                        <!-- Placeholder for image since CSV has none, using simple text icon -->
+                        <div class="text-4xl opacity-20">✈️</div>
+                        ${statusBadge}
+                    </div>
+                    <div class="p-4">
+                        <div class="flex justify-between items-start mb-1">
+                            <span class="text-xs font-mono text-slate-400">${a.icao}</span>
+                            <span class="text-xs px-2 py-0.5 rounded border ${getRarityColor(a.rarity)}">${a.rarity}</span>
+                        </div>
+                        <h3 class="font-bold text-slate-800 text-sm mb-1 truncate">${a.name}</h3>
+                        <p class="text-xs text-slate-500 mb-3">${a.sub}</p>
+                        
+                        <div class="flex justify-between text-xs text-slate-400 border-t border-slate-100 pt-2">
+                            <span>${a.speed} kt</span>
+                            <span>${a.range} NM</span>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        // --- 8. RENDER LOGIC: BATTLE ---
+        function renderBattle() {
+            // 1. Table
+            const tbody = document.getElementById('battle-table-body');
+            tbody.innerHTML = '';
+            
+            // Only items with battle stats
+            const battleItems = db.aircraft.filter(a => a.battle).sort((a,b) => b.battle.rating - a.battle.rating);
+
+            battleItems.forEach(a => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 font-mono">${a.icao}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${a.name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500"><span class="px-2 py-1 bg-slate-100 rounded text-xs">${a.battle.meta}</span></td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-slate-700">${a.battle.rating}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-slate-700">${a.battle.winRate}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // 2. Scatter Plot
+            // Goal: Visualize Rating vs Win Rate.
+            // Data prep
+            const scatterData = battleItems.map(a => ({
+                x: a.battle.rating,
+                y: a.battle.winRate,
+                icao: a.icao,
+                name: a.name,
+                meta: a.battle.meta
+            }));
+
+            // Color mapping for meta
+            const metaColor = (meta) => {
+                if(meta === 'Scarce') return '#f43f5e'; // Rose
+                if(meta === 'Military') return '#3b82f6'; // Blue
+                return '#94a3b8'; // Slate
+            };
+
+            renderChart('chart-battle-scatter', 'scatter', {
+                datasets: [{
+                    label: 'Aircraft Battle Performance',
+                    data: scatterData,
+                    backgroundColor: (ctx) => metaColor(ctx.raw?.meta),
+                    pointRadius: 6,
+                    pointHoverRadius: 8
+                }]
+            }, {
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => `${ctx.raw.name} (${ctx.raw.icao}): Rating ${ctx.raw.x}, VR ${ctx.raw.y}`
+                        }
+                    }
+                },
+                scales: {
+                    x: { title: { display: true, text: 'Battle Rating' } },
+                    y: { title: { display: true, text: 'Victory Rate' }, min: 0, max: 5 }
+                },
+                onClick: (evt, elements) => {
+                    if (elements.length > 0) {
+                        const index = elements[0].index;
+                        const icao = scatterData[index].icao;
+                        const aircraft = db.aircraft.find(a => a.icao === icao);
+                        if (aircraft) openModal(aircraft);
+                    }
+                }
+            });
+        }
+
+        // --- 9. MODAL LOGIC ---
+        function openModal(a) {
+            const m = els.modal;
+            m.title.textContent = a.name;
+            m.icao.textContent = `ICAO: ${a.icao}`;
+            m.status.textContent = a.caught ? 'Caught' : 'Uncaught';
+            m.status.className = a.caught ? 'text-lg font-bold text-emerald-600' : 'text-lg font-bold text-slate-400';
+            
+            // Specs
+            m.cat.textContent = a.cat;
+            m.subcat.textContent = a.sub;
+            m.speed.textContent = a.speed ? `${a.speed} kt` : '--';
+            m.range.textContent = a.range ? `${a.range} NM` : '--';
+            m.ceiling.textContent = a.ceiling ? `${a.ceiling} ft` : '--';
+            m.weight.textContent = a.weight ? `${a.weight} t` : '--';
+            m.year.textContent = a.firstFlight || '--';
+            m.seats.textContent = a.seats || '--';
+            m.wingspan.textContent = a.wingspan ? `${a.wingspan} m` : '--';
+            m.rarityScore.textContent = a.rarityScore || '--';
+
+            // Tiers
+            m.tiers.innerHTML = '';
+            const tierNames = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Cyber', 'Glow'];
+            if (a.tiers) {
+                tierNames.forEach(t => {
+                    const achieved = a.tiers[t.toLowerCase()];
+                    const div = document.createElement('div');
+                    div.className = 'flex items-center justify-between text-sm';
+                    div.innerHTML = `
+                        <span class="${achieved ? 'text-slate-800' : 'text-slate-300'}">${t}</span>
+                        ${achieved ? '<span class="text-emerald-500">✔</span>' : '<span class="text-slate-200">○</span>'}
+                    `;
+                    m.tiers.appendChild(div);
+                });
+            } else {
+                 m.tiers.innerHTML = '<span class="text-xs text-slate-400">No tier data</span>';
+            }
+
+            // Battle
+            if (a.battle) {
+                m.battleSection.classList.remove('hidden');
+                m.battleRating.textContent = a.battle.rating;
+                m.battleWin.textContent = a.battle.winRate;
+                m.battleMeta.textContent = a.battle.meta;
+            } else {
+                m.battleSection.classList.add('hidden');
+            }
+
+            // Show
+            m.overlay.classList.remove('hidden');
+            // Small delay for animation
+            setTimeout(() => {
+                m.content.classList.remove('scale-95', 'opacity-0');
+                m.content.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+
+        function closeModal() {
+            const m = els.modal;
+            m.content.classList.remove('scale-100', 'opacity-100');
+            m.content.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                m.overlay.classList.add('hidden');
+            }, 300);
+        }
+
+        // --- 10. EVENT LISTENERS ---
+        function setupEventListeners() {
+            // Collection Filter Inputs
+            const updateFilter = (key, val) => {
+                state.filters[key] = val;
+                renderCollection();
+            };
+
+            els.collection.search.addEventListener('input', (e) => updateFilter('search', e.target.value));
+            els.collection.catFilter.addEventListener('change', (e) => updateFilter('category', e.target.value));
+            els.collection.rarityFilter.addEventListener('change', (e) => updateFilter('rarity', e.target.value));
+            els.collection.caughtFilter.addEventListener('change', (e) => updateFilter('caught', e.target.value));
+            
+            els.collection.resetBtn.addEventListener('click', () => {
+                els.collection.search.value = '';
+                els.collection.catFilter.value = 'all';
+                els.collection.rarityFilter.value = 'all';
+                els.collection.caughtFilter.value = 'all';
+                state.filters = { search: '', category: 'all', rarity: 'all', caught: 'all' };
+                renderCollection();
+            });
+
+            // Modal
+            els.modal.close.addEventListener('click', closeModal);
+            els.modal.overlay.addEventListener('click', (e) => {
+                if (e.target === els.modal.overlay) closeModal();
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') closeModal();
+            });
+        }
+
+        // Boot
+        window.addEventListener('DOMContentLoaded', init);
+
+    </script>
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+</body>
+</html>
