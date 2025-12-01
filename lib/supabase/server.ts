@@ -8,8 +8,22 @@ export async function createClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+  // During build time, provide fallback values to prevent build failures
+  // These will be replaced at runtime with actual values from Netlify env vars
   if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Missing Supabase environment variables');
+    // Allow graceful degradation during build - env vars should be set in Netlify
+    console.warn('Supabase environment variables not found. Using placeholder client.');
+    // Return a mock client that won't crash during build
+    return createServerClient<Database>(
+      supabaseUrl || 'https://placeholder.supabase.co',
+      supabaseAnonKey || 'placeholder-key',
+      {
+        cookies: {
+          getAll: () => cookieStore.getAll(),
+          setAll: () => {},
+        },
+      }
+    );
   }
 
   return createServerClient<Database>(supabaseUrl, supabaseAnonKey, {

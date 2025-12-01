@@ -3,6 +3,8 @@ import { AircraftWithCollection } from "@/lib/supabase/types";
 import { getAircraftWithCollection } from "@/lib/supabase/queries";
 import { getCurrentUser } from "@/lib/auth";
 
+export const dynamic = 'force-dynamic';
+
 export default async function HangarPage() {
   const user = await getCurrentUser();
   

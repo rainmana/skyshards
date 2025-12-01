@@ -2,6 +2,8 @@ import { AddAircraftForm } from "@/components/add-aircraft/add-aircraft-form";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 
+export const dynamic = 'force-dynamic';
+
 export default async function AddAircraftPage() {
   const user = await getCurrentUser();
 
