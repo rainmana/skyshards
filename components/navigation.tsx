@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Plane, BarChart3, Sword } from "lucide-react";
+import { Plane, BarChart3, Sword, Plus } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
 import { UserMenu } from "./auth/user-menu";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,7 @@ const navItems = [
   { href: "/dashboard", label: "Command Center", icon: BarChart3 },
   { href: "/hangar", label: "Hangar", icon: Plane },
   { href: "/battle-lab", label: "Battle Lab", icon: Sword },
+  { href: "/add-aircraft", label: "Add Aircraft", icon: Plus },
 ];
 
 export function Navigation() {

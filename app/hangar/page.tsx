@@ -1,27 +1,13 @@
-import { createClient } from "@/lib/supabase/server";
 import { HangarView } from "@/components/hangar/hangar-view";
-import { Aircraft } from "@/lib/supabase/types";
+import { AircraftWithCollection } from "@/lib/supabase/types";
+import { getAircraftWithCollection } from "@/lib/supabase/queries";
+import { getCurrentUser } from "@/lib/auth";
 
 export default async function HangarPage() {
-  const supabase = await createClient();
+  const user = await getCurrentUser();
   
-  // Fetch all aircraft data
-  let aircraftData: Aircraft[] = [];
-  
-  try {
-    const { data: aircraft, error } = await supabase
-      .from("aircraft")
-      .select("*")
-      .order("name");
-
-    if (error) {
-      console.error("Error fetching aircraft:", error);
-    } else {
-      aircraftData = aircraft || [];
-    }
-  } catch (error) {
-    console.error("Error connecting to Supabase:", error);
-  }
+  // Fetch all aircraft visible to user (Master + Custom) with collection status
+  const aircraftData: AircraftWithCollection[] = await getAircraftWithCollection(user?.id || null);
 
   return (
     <div className="space-y-6 animate-fade-in">
